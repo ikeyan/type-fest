@@ -1,5 +1,22 @@
 import {expectType} from 'tsd';
-import type {FunctionOverloads, IsEqual} from '../index.d.ts';
+import type {FunctionOverloads, IsEqual, UnknownArray} from '../index.d.ts';
+
+// Neither `expectType` nor `IsEqual` can distinguish implicit `this` from explicit `this: unknown`:
+//   expectType<() => void>(x as (this: unknown) => void); // no error
+//   IsEqual<() => void, (this: unknown) => void> // => true
+// `IsEqualStrict` resolves this by also comparing the extracted `this` parameter via a sentinel type.
+declare const isEqualStrictNothing: unique symbol;
+type IsEqualStrictNothing = typeof isEqualStrictNothing;
+type FuncToTuple<Function_ extends (...arguments_: never) => unknown> =
+	Function_ extends (...arguments_: infer Parameters_ extends UnknownArray) => infer Return
+		? ((this: IsEqualStrictNothing, ...arguments_: Parameters_) => Return) & Function_ extends (this: infer This, ...arguments_: never) => unknown
+			? [This, Parameters_, Return]
+			: never
+		: never;
+type IsEqualStrict<
+	Function1_ extends (...arguments_: never) => unknown,
+	Function2_ extends (...arguments_: never) => unknown,
+> = IsEqual<[Function1_, FuncToTuple<Function1_>], [Function2_, FuncToTuple<Function2_>]>;
 
 type Function1 = (foo: string, bar: number) => object;
 type Function2 = (foo: bigint, ...bar: any[]) => void;
@@ -179,29 +196,30 @@ expectType<Function1 | (() => string)>(duplicateOverloads);
 declare const genericIntersectionOverload: FunctionOverloads<((this: string) => string) & (<T>(this: T, argument: T) => T)>;
 expectType<(this: unknown, argument: unknown) => unknown>(genericIntersectionOverload);
 
-// Verify that explicit `this: unknown` is preserved while implicit `this` is omitted
+// Verify that explicit `this: unknown` is preserved while implicit `this` is omitted.
+// `IsEqualStrict` is needed here because neither `expectType` nor `IsEqual` can distinguish the two.
 type AssertTrue<T extends true> = T;
 
 // Single overload with explicit `this: unknown`
-type _TestExplicitUnknownThis = AssertTrue<IsEqual<
+type _TestExplicitUnknownThis = AssertTrue<IsEqualStrict<
 	FunctionOverloads<(this: unknown) => void>,
 	(this: unknown) => void
 >>;
 
 // Single overload with implicit `this`
-type _TestImplicitThis = AssertTrue<IsEqual<
+type _TestImplicitThis = AssertTrue<IsEqualStrict<
 	FunctionOverloads<() => void>,
 	() => void
 >>;
 
 // Mixed explicit `this: unknown` and implicit `this` overloads
-type _TestMixedThis = AssertTrue<IsEqual<
+type _TestMixedThis = AssertTrue<IsEqualStrict<
 	FunctionOverloads<((this: unknown, event: 'explicit') => void) & ((event: 'implicit') => void)>,
 	((this: unknown, event: 'explicit') => void) | ((event: 'implicit') => void)
 >>;
 
 // Multiple explicit and implicit `this` overloads
-type _TestMultipleMixedThis = AssertTrue<IsEqual<
+type _TestMultipleMixedThis = AssertTrue<IsEqualStrict<
 	FunctionOverloads<{
 		(this: unknown, event: 'explicit'): void;
 		(this: unknown, event: 'explicit2'): void;
@@ -218,10 +236,10 @@ type _TestMultipleMixedThis = AssertTrue<IsEqual<
 type Function1WithThis<This> = (this: This, foo: string, bar: number) => object;
 
 type _TestImplicitThisLimitation = [
-	AssertTrue<IsEqual<FunctionOverloads<Function1 & Function1WithThis<1>>, Function1 | Function1WithThis<1>>>,
+	AssertTrue<IsEqualStrict<FunctionOverloads<Function1 & Function1WithThis<1>>, Function1 | Function1WithThis<1>>>,
 	// When the explicit `this` overload comes first, the implicit `this` overload may be absorbed
-	AssertTrue<IsEqual<FunctionOverloads<Function1WithThis<1> & Function1>, Function1WithThis<1>>>,
+	AssertTrue<IsEqualStrict<FunctionOverloads<Function1WithThis<1> & Function1>, Function1WithThis<1>>>,
 	// With `this: unknown` specifically, implicit `this` is always absorbed
-	AssertTrue<IsEqual<FunctionOverloads<Function1 & Function1WithThis<unknown>>, Function1WithThis<unknown>>>,
-	AssertTrue<IsEqual<FunctionOverloads<Function1WithThis<unknown> & Function1>, Function1WithThis<unknown>>>,
+	AssertTrue<IsEqualStrict<FunctionOverloads<Function1 & Function1WithThis<unknown>>, Function1WithThis<unknown>>>,
+	AssertTrue<IsEqualStrict<FunctionOverloads<Function1WithThis<unknown> & Function1>, Function1WithThis<unknown>>>,
 ];
