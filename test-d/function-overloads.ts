@@ -198,48 +198,46 @@ expectType<(this: unknown, argument: unknown) => unknown>(genericIntersectionOve
 
 // Verify that explicit `this: unknown` is preserved while implicit `this` is omitted.
 // `IsEqualStrict` is needed here because neither `expectType` nor `IsEqual` can distinguish the two.
-type AssertTrue<T extends true> = T;
+
+type Function1WithThis<This> = (this: This, foo: string, bar: number) => object;
+type Function2WithThis<This> = (this: This, foo: bigint, ...bar: any[]) => void;
 
 // Single overload with explicit `this: unknown`
-type _TestExplicitUnknownThis = AssertTrue<IsEqualStrict<
-	FunctionOverloads<(this: unknown) => void>,
-	(this: unknown) => void
->>;
+expectType<IsEqualStrict<
+	FunctionOverloads<Function1WithThis<unknown>>,
+	Function1WithThis<unknown>
+>>(true);
 
 // Single overload with implicit `this`
-type _TestImplicitThis = AssertTrue<IsEqualStrict<
-	FunctionOverloads<() => void>,
-	() => void
->>;
+expectType<IsEqualStrict<
+	FunctionOverloads<Function1>,
+	Function1
+>>(true);
 
 // Mixed explicit `this: unknown` and implicit `this` overloads
-type _TestMixedThis = AssertTrue<IsEqualStrict<
-	FunctionOverloads<((this: unknown, event: 'explicit') => void) & ((event: 'implicit') => void)>,
-	((this: unknown, event: 'explicit') => void) | ((event: 'implicit') => void)
->>;
+expectType<IsEqualStrict<
+	FunctionOverloads<Function1WithThis<unknown> & Function2>,
+	Function1WithThis<unknown> | Function2
+>>(true);
 
 // Multiple explicit and implicit `this` overloads
-type _TestMultipleMixedThis = AssertTrue<IsEqualStrict<
+expectType<IsEqualStrict<
 	FunctionOverloads<{
-		(this: unknown, event: 'explicit'): void;
-		(this: unknown, event: 'explicit2'): void;
-		(event: 'implicit'): void;
-		(event: 'implicit2'): void;
+		(this: unknown, foo: string, bar: number): object;
+		(this: unknown, foo: bigint, ...bar: any[]): void;
+		(foo: string, bar: number, baz?: boolean): object;
+		(...foo: any[]): void;
 	}>,
-	| ((this: unknown, event: 'explicit') => void)
-	| ((this: unknown, event: 'explicit2') => void)
-	| ((event: 'implicit') => void)
-	| ((event: 'implicit2') => void)
->>;
+	| Function1WithThis<unknown>
+	| Function2WithThis<unknown>
+	| Function3
+	| Function4
+>>(true);
 
 // When implicit `this` and explicit `this: unknown` overloads share same params/return, implicit may be lost
-type Function1WithThis<This> = (this: This, foo: string, bar: number) => object;
-
-type _TestImplicitThisLimitation = [
-	AssertTrue<IsEqualStrict<FunctionOverloads<Function1 & Function1WithThis<1>>, Function1 | Function1WithThis<1>>>,
-	// When the explicit `this` overload comes first, the implicit `this` overload may be absorbed
-	AssertTrue<IsEqualStrict<FunctionOverloads<Function1WithThis<1> & Function1>, Function1WithThis<1>>>,
-	// With `this: unknown` specifically, implicit `this` is always absorbed
-	AssertTrue<IsEqualStrict<FunctionOverloads<Function1 & Function1WithThis<unknown>>, Function1WithThis<unknown>>>,
-	AssertTrue<IsEqualStrict<FunctionOverloads<Function1WithThis<unknown> & Function1>, Function1WithThis<unknown>>>,
-];
+expectType<IsEqualStrict<FunctionOverloads<Function1 & Function1WithThis<1>>, Function1 | Function1WithThis<1>>>(true);
+// When the explicit `this` overload comes first, the implicit `this` overload may be absorbed
+expectType<IsEqualStrict<FunctionOverloads<Function1WithThis<1> & Function1>, Function1WithThis<1>>>(true);
+// With `this: unknown` specifically, implicit `this` is always absorbed
+expectType<IsEqualStrict<FunctionOverloads<Function1 & Function1WithThis<unknown>>, Function1WithThis<unknown>>>(true);
+expectType<IsEqualStrict<FunctionOverloads<Function1WithThis<unknown> & Function1>, Function1WithThis<unknown>>>(true);
