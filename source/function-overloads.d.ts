@@ -46,22 +46,17 @@ type RequestReturnType = ReturnType<RequestOverloads>;
 export type FunctionOverloads<FunctionType> = FunctionType extends unknown
 	? IsAny<FunctionType> extends true
 		? (...arguments_: readonly unknown[]) => unknown
-		: DistinguishUnknownThisOverloads<FunctionType>
+		: DistinguishUnknownThisOverloads<FunctionType>[number]
 	: never;
 
 declare const nothing: unique symbol;
 type Nothing = typeof nothing;
 type AnyOverload = [This: unknown, Parameters: UnknownArray, Return: unknown];
 
-type MatchesAnyOverload<Overload, TargetOverloads> =
-	true extends (
-		TargetOverloads extends unknown ? IsEqual<Overload, TargetOverloads> : never
-	)
-		? true
-		: false;
-
 /**
-Iterates over all overload signatures from bottom to top, collecting each as a `[This, Parameters, Return]` tuple union.
+Iterates over all overload signatures from bottom to top, collecting each as a `[This, Parameters, Return]` tuple in declaration order.
+
+The termination condition (`CheckedOverloads === PreviousCheckedOverloads`) lags by one iteration, so the last extracted overload is always a duplicate. We drop it by removing the first element of the result tuple at termination.
 
 It also builds up a "secondary" function type where implicit-`this` overloads have their `this` replaced with `Nothing`, enabling later disambiguation between implicit `this` and explicit `this: unknown`.
 
@@ -71,11 +66,11 @@ type CollectOverloads<
 	AllOverloads,
 	CheckedOverloads = unknown,
 	PreviousCheckedOverloads = never,
-	ResultOverloads extends AnyOverload = never,
+	ResultOverloads extends AnyOverload[] = [],
 	ResultFunctionType = AllOverloads,
 > =
 	IsEqual<CheckedOverloads, PreviousCheckedOverloads> extends true
-		? [ResultOverloads, ResultFunctionType]
+		? [ResultOverloads extends [AnyOverload, ...infer Rest extends AnyOverload[]] ? Rest : [], ResultFunctionType]
 		: AllOverloads extends (this: infer This, ...arguments_: infer Parameters_ extends UnknownArray) => infer Return
 			? CollectOverloads<
 				// Intersecting one signature with the full type makes the compiler infer a different "last overload"
@@ -83,7 +78,7 @@ type CollectOverloads<
 				((this: This, ...arguments_: Parameters_) => Return) & AllOverloads,
 				((this: This, ...arguments_: Parameters_) => Return) & CheckedOverloads,
 				CheckedOverloads,
-				ResultOverloads | [This, Parameters_, Return],
+				[[This, Parameters_, Return], ...ResultOverloads],
 				IsUnknown<This> extends true
 					? ((this: Nothing, ...arguments_: Parameters_) => Return) & ResultFunctionType
 					: ResultFunctionType
@@ -91,37 +86,32 @@ type CollectOverloads<
 			: never;
 
 /**
-Finds overloads that explicitly declare `this: unknown` (as opposed to having no `this` annotation, which TypeScript also infers as `unknown`).
+Maps a tuple of `[This, Parameters, Return]` overloads into a tuple of function types, omitting the `this` parameter for overloads that did not explicitly declare one.
 
-The second pass (running `CollectOverloads` on the secondary function type where implicit-`this` was replaced with `Nothing`) lets us distinguish the two cases.
+For each overload whose `this` is `unknown`, the second-pass tuple is consulted to determine whether the `this: unknown` was explicit (present in the second pass) or implicit (absent). Implicit-`this` overloads have their `this` parameter stripped.
 */
-type ExtractExplicitUnknownThisOverloads<SecondPassOverloads, Overloads> = Overloads extends AnyOverload
-	? IsUnknown<Overloads[0]> extends true
-		? MatchesAnyOverload<Overloads, SecondPassOverloads> extends true
-			? Overloads
-			: never
+type OverloadsToFunctions<
+	Overloads extends AnyOverload[],
+	SecondPassOverloads extends AnyOverload[],
+> = {
+	[K in keyof Overloads]: Overloads[K] extends infer Overload extends AnyOverload
+		? IsUnknown<Overload[0]> extends true
+			? true extends {
+				[J in keyof SecondPassOverloads]: IsEqual<Overload, SecondPassOverloads[J]>
+			}[number]
+				? (this: Overload[0], ...arguments_: Overload[1]) => Overload[2]
+				: (...arguments_: Overload[1]) => Overload[2]
+			: (this: Overload[0], ...arguments_: Overload[1]) => Overload[2]
 		: never
-	: never;
-
-type IsImplicitThisOverload<Overload extends AnyOverload, ExplicitUnknownThisOverloads> = [
-	IsUnknown<Overload[0]>,
-	MatchesAnyOverload<Overload, ExplicitUnknownThisOverloads>,
-] extends [true, false]
-	? true
-	: false;
+};
 
 /**
-Reconstructs each overload as a proper function type, omitting the `this` parameter for overloads that did not explicitly declare one.
+Orchestrates the two-pass approach: collects overloads, then maps them to proper function types as a tuple.
 */
 type DistinguishUnknownThisOverloads<
 	FunctionType,
-	Overloads = CollectOverloads<FunctionType>[0],
-	SecondPassOverloads = CollectOverloads<CollectOverloads<FunctionType>[1]>[0],
-	ExplicitUnknownThisOverloads = ExtractExplicitUnknownThisOverloads<SecondPassOverloads, Overloads>,
-> = Overloads extends [infer This, infer Parameters_ extends UnknownArray, infer Return]
-	? IsImplicitThisOverload<Overloads, ExplicitUnknownThisOverloads> extends true
-		? (...arguments_: Parameters_) => Return
-		: (this: This, ...arguments_: Parameters_) => Return
-	: never;
+	Overloads extends AnyOverload[] = CollectOverloads<FunctionType>[0],
+	SecondPassOverloads extends AnyOverload[] = CollectOverloads<CollectOverloads<FunctionType>[1]>[0],
+> = OverloadsToFunctions<Overloads, SecondPassOverloads>;
 
 export {};
