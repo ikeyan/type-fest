@@ -247,6 +247,7 @@ Click the type names for complete docs.
 ### Function
 
 - [`FunctionOverloads`](source/function-overloads.d.ts) - Create a union of all overload signatures of the given function type.
+- [`OverloadsToTuple`](source/function-overloads.d.ts) - Extract all overload signatures of the given function type as a tuple, preserving declaration order.
 - [`SetReturnType`](source/set-return-type.d.ts) - Create a function type with a return type of your choice and the same parameters as the given function type.
 - [`SetParameterType`](source/set-parameter-type.d.ts) - Create a function that replaces some parameters with the given parameters.
 
