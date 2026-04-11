@@ -2,9 +2,9 @@ import type {CollectOverloads} from './internal/index.d.ts';
 import type {IsAny} from './is-any.d.ts';
 
 /**
-Create a union of all overload signatures of the given function type.
+Extract all overload signatures of the given function type as a tuple, preserving declaration order.
 
-TypeScript's built-in utility types like `Parameters` and `ReturnType` only work with the last overload signature, [by design](https://github.com/microsoft/TypeScript/issues/32164). This type extracts all overload signatures as a union, allowing you to work with each overload individually.
+TypeScript's built-in utility types like `Parameters` and `ReturnType` only work with the last overload signature, [by design](https://github.com/microsoft/TypeScript/issues/32164). This type extracts all overload signatures, allowing you to work with each overload individually.
 
 Use-cases:
 - Extract parameter types from specific overloads using `Extract` and `Parameters`
@@ -17,50 +17,21 @@ Known limitations:
 
 @example
 ```
-import type {FunctionOverloads} from 'type-fest';
+import type {Overloads} from 'type-fest';
 
 declare function request(url: string): Promise<string>;
 declare function request(url: string, options: {json: true}): Promise<unknown>;
 
-type RequestOverloads = FunctionOverloads<typeof request>;
-//=> ((url: string) => Promise<string>) | ((url: string, options: {
-// 	json: true;
-// }) => Promise<unknown>)
-
-// You can also get all parameters and return types using built-in `Parameters` and `ReturnType` utilities:
-
-type RequestParameters = Parameters<RequestOverloads>;
-//=> [url: string] | [url: string, options: {json: true}]
-
-type RequestReturnType = ReturnType<RequestOverloads>;
-//=> Promise<string> | Promise<unknown>
-```
-
-@see https://github.com/microsoft/TypeScript/issues/14107
-@see https://github.com/microsoft/TypeScript/issues/32164
-
-@category Function
-*/
-export type FunctionOverloads<FunctionType extends (...args: any) => any> = OverloadsToTuple<FunctionType>[number];
-
-/**
-Extract all overload signatures of the given function type as a tuple, preserving declaration order.
-
-This is the tuple counterpart to {@link FunctionOverloads}, which returns a union. Use this when overload order matters.
-
-Known limitations are the same as {@link FunctionOverloads}.
-
-@example
-```
-import type {OverloadsToTuple} from 'type-fest';
-
-declare function request(url: string): Promise<string>;
-declare function request(url: string, options: {json: true}): Promise<unknown>;
-
-type RequestOverloads = OverloadsToTuple<typeof request>;
+type RequestOverloads = Overloads<typeof request>;
 //=> [(url: string) => Promise<string>, (url: string, options: {
 // 	json: true;
 // }) => Promise<unknown>]
+
+// To get a union instead of a tuple, index with [number]:
+type RequestOverloadsUnion = Overloads<typeof request>[number];
+//=> ((url: string) => Promise<string>) | ((url: string, options: {
+// 	json: true;
+// }) => Promise<unknown>)
 ```
 
 @see https://github.com/microsoft/TypeScript/issues/14107
@@ -68,10 +39,54 @@ type RequestOverloads = OverloadsToTuple<typeof request>;
 
 @category Function
 */
-export type OverloadsToTuple<FunctionType extends (...args: any) => any> = FunctionType extends unknown
+export type Overloads<FunctionType extends (...args: any) => any> = FunctionType extends unknown
 	? IsAny<FunctionType> extends true
 		? [(...arguments_: any[]) => any]
 		: CollectOverloads<FunctionType>
 	: never;
+
+/**
+Extract the parameter types of all overloads as a union.
+
+This is the overload-aware counterpart to the built-in `Parameters` utility type, which only extracts from the last overload.
+
+@example
+```
+import type {OverloadParameters} from 'type-fest';
+
+declare function request(url: string): Promise<string>;
+declare function request(url: string, options: {json: true}): Promise<unknown>;
+
+type AllParameters = OverloadParameters<typeof request>;
+//=> [url: string] | [url: string, options: {json: true}]
+```
+
+Known limitations are the same as {@link Overloads}.
+
+@category Function
+*/
+export type OverloadParameters<FunctionType extends (...args: any) => any> = Parameters<Overloads<FunctionType>[number]>;
+
+/**
+Extract the return types of all overloads as a union.
+
+This is the overload-aware counterpart to the built-in `ReturnType` utility type, which only extracts from the last overload.
+
+@example
+```
+import type {OverloadReturnType} from 'type-fest';
+
+declare function request(url: string): Promise<string>;
+declare function request(url: string, options: {json: true}): Promise<unknown>;
+
+type AllReturnTypes = OverloadReturnType<typeof request>;
+//=> Promise<string> | Promise<unknown>
+```
+
+Known limitations are the same as {@link Overloads}.
+
+@category Function
+*/
+export type OverloadReturnType<FunctionType extends (...args: any) => any> = ReturnType<Overloads<FunctionType>[number]>;
 
 export {};

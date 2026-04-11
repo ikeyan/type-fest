@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import type {FunctionOverloads, IsEqual, OverloadsToTuple, UnknownArray} from '../index.d.ts';
+import type {IsEqual, Overloads, OverloadParameters, OverloadReturnType, UnknownArray} from '../index.d.ts';
 
 // Neither `expectType` nor `IsEqual` can distinguish implicit `this` from explicit `this: unknown`:
 //   expectType<() => void>(x as (this: unknown) => void); // no error
@@ -26,22 +26,22 @@ type Function1 = (foo: string, bar: number) => object;
 type Function2 = (foo: bigint, ...bar: any[]) => void;
 
 // Single function (no overload)
-declare const normalFunction: OverloadsToTuple<Function1>;
+declare const normalFunction: Overloads<Function1>;
 expectType<[Function1]>(normalFunction);
 
 // Two overloads via intersection
-declare const twoOverloads: OverloadsToTuple<Function1 & Function2>;
+declare const twoOverloads: Overloads<Function1 & Function2>;
 expectType<[Function1, Function2]>(twoOverloads);
 
 // Two overloads via interface syntax
-declare const twoOverloadsInterface: OverloadsToTuple<{
+declare const twoOverloadsInterface: Overloads<{
 	(foo: string, bar: number): object;
 	(foo: bigint, ...bar: any[]): void;
 }>;
 expectType<[Function1, Function2]>(twoOverloadsInterface);
 
 // Identical overloads collapse
-declare const twoIdenticalOverloads: OverloadsToTuple<{
+declare const twoIdenticalOverloads: Overloads<{
 	(foo: string, bar: number): object;
 	(foo: string, bar: number): object;
 }>;
@@ -50,46 +50,46 @@ expectType<[Function1]>(twoIdenticalOverloads);
 type Function3 = (foo: string, bar: number, baz?: boolean) => object;
 
 // Two overloads with assignable but distinct signatures
-declare const twoOverloadsWithAssignableSignature: OverloadsToTuple<Function1 & Function3>;
+declare const twoOverloadsWithAssignableSignature: Overloads<Function1 & Function3>;
 expectType<[Function1, Function3]>(twoOverloadsWithAssignableSignature);
 
 // Three overloads — declaration order preserved
-declare const threeOverloads: OverloadsToTuple<Function1 & Function2 & Function3>;
+declare const threeOverloads: Overloads<Function1 & Function2 & Function3>;
 expectType<[Function1, Function2, Function3]>(threeOverloads);
 
 type Function4 = (...foo: any[]) => void;
 type Function5 = (...foo: readonly any[]) => void;
 
 // Rest parameter overloads
-declare const normalFunctionWithOnlyRestWritableParameter: OverloadsToTuple<Function4>;
+declare const normalFunctionWithOnlyRestWritableParameter: Overloads<Function4>;
 expectType<[Function4]>(normalFunctionWithOnlyRestWritableParameter);
 
-declare const normalFunctionWithOnlyRestReadonlyParameter: OverloadsToTuple<Function5>;
+declare const normalFunctionWithOnlyRestReadonlyParameter: Overloads<Function5>;
 expectType<[Function5]>(normalFunctionWithOnlyRestReadonlyParameter);
 
 // The compiler ignores subsequent identical-up-to-readonly overloads
-declare const twoOverloadsWithDifferentRestParameterReadonliness: OverloadsToTuple<Function4 & Function5>;
+declare const twoOverloadsWithDifferentRestParameterReadonliness: Overloads<Function4 & Function5>;
 expectType<[Function4]>(twoOverloadsWithDifferentRestParameterReadonliness);
 
-declare const twoOverloadsWithDifferentRestParameterReadonlinessReversed: OverloadsToTuple<Function5 & Function4>;
+declare const twoOverloadsWithDifferentRestParameterReadonlinessReversed: Overloads<Function5 & Function4>;
 expectType<[Function5]>(twoOverloadsWithDifferentRestParameterReadonlinessReversed);
 
 type Function6 = (foo: string, ...bar: any[]) => void;
 type Function7 = (foo: string, ...bar: readonly any[]) => void;
 
-declare const normalFunctionWithNormalAndRestWritableParameter: OverloadsToTuple<Function6>;
+declare const normalFunctionWithNormalAndRestWritableParameter: Overloads<Function6>;
 expectType<[Function6]>(normalFunctionWithNormalAndRestWritableParameter);
 
 // Readonly rest parameter cannot be represented with tuples
-declare const normalFunctionWithNormalAndRestReadonlyParameter: OverloadsToTuple<Function7>;
+declare const normalFunctionWithNormalAndRestReadonlyParameter: Overloads<Function7>;
 expectType<[(foo: string, ...bar: any[]) => void]>(normalFunctionWithNormalAndRestReadonlyParameter);
 
 type Function8 = () => never;
 
-declare const normalFunctionNoParameters: OverloadsToTuple<Function8>;
+declare const normalFunctionNoParameters: Overloads<Function8>;
 expectType<[Function8]>(normalFunctionNoParameters);
 
-declare const twoOverloadsWithNoAndPresentParameters: OverloadsToTuple<Function8 & Function6>;
+declare const twoOverloadsWithNoAndPresentParameters: Overloads<Function8 & Function6>;
 expectType<[Function8, Function6]>(twoOverloadsWithNoAndPresentParameters);
 
 type Function9 = (event: 'event9', argument: string) => void;
@@ -98,7 +98,7 @@ type Function11 = (event: 'event11', argument: boolean) => never;
 type Function12 = (event: 'event12', argument: bigint) => object;
 
 // Many overloads — order preserved
-declare const manyOverloads: OverloadsToTuple<
+declare const manyOverloads: Overloads<
 	Function1
 	& Function2
 	& Function3
@@ -126,25 +126,25 @@ expectType<[
 ]>(manyOverloads);
 
 // Edge case: `any` returns a single generic function signature
-declare const anyOverload: OverloadsToTuple<any>;
+declare const anyOverload: Overloads<any>;
 expectType<[(...arguments_: any[]) => any]>(anyOverload);
 
 // Edge case: `never` returns never (distributes over union)
-declare const neverOverload: OverloadsToTuple<never>;
+declare const neverOverload: Overloads<never>;
 expectType<never>(neverOverload);
 
 // `declare function` overloads
 declare function declaredOverload(input: string): {kind: 'string'};
 declare function declaredOverload(input: number, flag: boolean): {kind: 'number'};
 
-declare const declaredOverloadResult: OverloadsToTuple<typeof declaredOverload>;
+declare const declaredOverloadResult: Overloads<typeof declaredOverload>;
 expectType<[(input: string) => {kind: 'string'}, (input: number, flag: boolean) => {kind: 'number'}]>(declaredOverloadResult);
 
 // Overloads with explicit `this` parameters
 type ThisOverload1 = (this: Date, foo: string) => void;
 type ThisOverload2 = (this: URL, foo: number) => void;
 
-declare const thisOverloads: OverloadsToTuple<ThisOverload1 & ThisOverload2>;
+declare const thisOverloads: Overloads<ThisOverload1 & ThisOverload2>;
 // Verify `this` is preserved
 expectType<[ThisOverload1, ThisOverload2]>(thisOverloads);
 
@@ -152,14 +152,14 @@ expectType<[ThisOverload1, ThisOverload2]>(thisOverloads);
 type SameParametersDifferentReturn1 = (foo: string) => string;
 type SameParametersDifferentReturn2 = (foo: string) => number;
 
-declare const sameParametersDifferentReturn: OverloadsToTuple<SameParametersDifferentReturn1 & SameParametersDifferentReturn2>;
+declare const sameParametersDifferentReturn: Overloads<SameParametersDifferentReturn1 & SameParametersDifferentReturn2>;
 expectType<[SameParametersDifferentReturn1, SameParametersDifferentReturn2]>(sameParametersDifferentReturn);
 
 // Generic overloads — generic parameters become `unknown`
 declare function genericOverload<T>(input: T): T;
 declare function genericOverload(input: string): string;
 
-declare const genericOverloadResult: OverloadsToTuple<typeof genericOverload>;
+declare const genericOverloadResult: Overloads<typeof genericOverload>;
 expectType<[(input: unknown) => unknown, (input: string) => string]>(genericOverloadResult);
 
 // Interface-style overload
@@ -168,20 +168,20 @@ type InterfaceOverload = {
 	(input: number): 2;
 };
 
-declare const interfaceOverload: OverloadsToTuple<InterfaceOverload>;
+declare const interfaceOverload: Overloads<InterfaceOverload>;
 expectType<[(input: string) => 1, (input: number) => 2]>(interfaceOverload);
 
 // Same parameters, different `this` types
 type SameParametersDifferentThis1 = (this: Date, foo: string) => number;
 type SameParametersDifferentThis2 = (this: URL, foo: string) => number;
 
-declare const sameParametersDifferentThis: OverloadsToTuple<SameParametersDifferentThis1 & SameParametersDifferentThis2>;
+declare const sameParametersDifferentThis: Overloads<SameParametersDifferentThis1 & SameParametersDifferentThis2>;
 expectType<[SameParametersDifferentThis1, SameParametersDifferentThis2]>(sameParametersDifferentThis);
-declare const sameParametersDifferentThis2: OverloadsToTuple<SameParametersDifferentThis2 & SameParametersDifferentThis1>;
+declare const sameParametersDifferentThis2: Overloads<SameParametersDifferentThis2 & SameParametersDifferentThis1>;
 expectType<[SameParametersDifferentThis2, SameParametersDifferentThis1]>(sameParametersDifferentThis2);
 
 // Duplicate overloads in interface are collapsed
-declare const duplicateOverloads: OverloadsToTuple<{
+declare const duplicateOverloads: Overloads<{
 	(foo: string, bar: number): object;
 	(): string;
 	(): string;
@@ -189,7 +189,7 @@ declare const duplicateOverloads: OverloadsToTuple<{
 expectType<[Function1, () => string]>(duplicateOverloads);
 
 // Generic overload at intersection level stops iteration — only the last inferred overload
-declare const genericIntersectionOverload: OverloadsToTuple<((this: string) => string) & (<T>(this: T, argument: T) => T)>;
+declare const genericIntersectionOverload: Overloads<((this: string) => string) & (<T>(this: T, argument: T) => T)>;
 expectType<[(this: unknown, argument: unknown) => unknown]>(genericIntersectionOverload);
 
 // Verify that explicit `this: unknown` is preserved while implicit `this` is omitted.
@@ -200,25 +200,25 @@ type Function2WithThis<This> = (this: This, foo: bigint, ...bar: any[]) => void;
 
 // Single overload with explicit `this: unknown`
 expectType<IsEqualStrict<
-	OverloadsToTuple<Function1WithThis<unknown>>,
+	Overloads<Function1WithThis<unknown>>,
 	[Function1WithThis<unknown>]
 >>(true);
 
 // Single overload with implicit `this`
 expectType<IsEqualStrict<
-	OverloadsToTuple<Function1>,
+	Overloads<Function1>,
 	[Function1]
 >>(true);
 
 // Mixed explicit `this: unknown` and implicit `this` overloads
 expectType<IsEqualStrict<
-	OverloadsToTuple<Function1WithThis<unknown> & Function2>,
+	Overloads<Function1WithThis<unknown> & Function2>,
 	[Function1WithThis<unknown>, Function2]
 >>(true);
 
 // Multiple explicit and implicit `this` overloads
 expectType<IsEqualStrict<
-	OverloadsToTuple<{
+	Overloads<{
 		(this: unknown, foo: string, bar: number): object;
 		(this: unknown, foo: bigint, ...bar: any[]): void;
 		(foo: string, bar: number, baz?: boolean): object;
@@ -233,18 +233,20 @@ expectType<IsEqualStrict<
 >>(true);
 
 // When implicit `this` and explicit `this: unknown` overloads share same params/return, implicit may be lost
-expectType<IsEqualStrict<OverloadsToTuple<Function1 & Function1WithThis<1>>, [Function1]>>(true);
+expectType<IsEqualStrict<Overloads<Function1 & Function1WithThis<1>>, [Function1]>>(true);
 // When the explicit `this` overload comes first, the implicit `this` overload may be absorbed
-expectType<IsEqualStrict<OverloadsToTuple<Function1WithThis<1> & Function1>, [Function1WithThis<1>]>>(true);
-expectType<IsEqualStrict<OverloadsToTuple<Function1WithThis<1> & Function1 & Function1WithThis<2>>, [Function1WithThis<1>, Function1WithThis<2>]>>(true);
+expectType<IsEqualStrict<Overloads<Function1WithThis<1> & Function1>, [Function1WithThis<1>]>>(true);
+expectType<IsEqualStrict<Overloads<Function1WithThis<1> & Function1 & Function1WithThis<2>>, [Function1WithThis<1>, Function1WithThis<2>]>>(true);
 // With `this: unknown` specifically, implicit `this` is always absorbed
-expectType<IsEqualStrict<OverloadsToTuple<Function1 & Function1WithThis<unknown>>, [Function1]>>(true);
-expectType<IsEqualStrict<OverloadsToTuple<Function1WithThis<unknown> & Function1>, [Function1WithThis<unknown>]>>(true);
+expectType<IsEqualStrict<Overloads<Function1 & Function1WithThis<unknown>>, [Function1]>>(true);
+expectType<IsEqualStrict<Overloads<Function1WithThis<unknown> & Function1>, [Function1WithThis<unknown>]>>(true);
 
-// === FunctionOverloads (union counterpart — basic coverage) ===
+// === OverloadParameters / OverloadReturnType ===
 
-declare const functionOverloadsSingle: FunctionOverloads<Function1>;
-expectType<Function1>(functionOverloadsSingle);
+declare const overloadParameters: OverloadParameters<Function1 & Function2>;
+expectType<[foo: string, bar: number] | [foo: bigint, ...bar: any[]]>(overloadParameters);
 
-declare const functionOverloadsTwo: FunctionOverloads<Function1 & Function2>;
-expectType<Function1 | Function2>(functionOverloadsTwo);
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+declare const overloadReturnType: OverloadReturnType<Function1 & Function2>;
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+expectType<object | void>(overloadReturnType);

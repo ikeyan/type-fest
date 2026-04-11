@@ -105,7 +105,6 @@ export type CollectOverloads<
 			LastOverload<AllOverloads> & CheckedOverloads,
 			CheckedOverloads,
 			[LastOverload<AllOverloads>, ...ResultOverloads]
-		>
-;
+		>;
 
 export {};
