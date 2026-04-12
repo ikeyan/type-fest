@@ -1,11 +1,17 @@
 import {expectType} from 'tsd';
 import type {IsEqual, Overloads, OverloadParameters, OverloadReturnType, UnknownArray} from '../index.d.ts';
 
-// Neither `expectType` nor `IsEqual` can distinguish implicit `this` from explicit `this: unknown`:
-//   expectType<() => void>(x as (this: unknown) => void); // no error
-//   IsEqual<() => void, (this: unknown) => void> // => true
-// `IsEqualStrict` resolves this by also comparing the extracted `this` parameter via a sentinel type.
-// It accepts tuples of functions and compares them element-wise.
+/*
+Neither `expectType` nor `IsEqual` can distinguish implicit `this` from explicit `this: unknown`:
+
+```ts
+expectType<() => void>(x as (this: unknown) => void); // no error
+type _ = IsEqual<() => void, (this: unknown) => void>; // => true
+```
+
+`IsEqualStrict` resolves this by also comparing the extracted `this` parameter via a sentinel type.
+It accepts tuples of functions and compares them element-wise.
+*/
 declare const isEqualStrictNothing: unique symbol;
 type IsEqualStrictNothing = typeof isEqualStrictNothing;
 type FuncToTuple<Function_ extends (...arguments_: never) => unknown> =
