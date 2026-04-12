@@ -4,9 +4,10 @@ import type {IsUnknown} from '../is-unknown.d.ts';
 import type {UnknownArray} from '../unknown-array.d.ts';
 
 /**
- * Obtain the parameters of a function type in a tuple
- * This works even when the parameters type is a readonly array
- */
+Obtain the parameters of a function type in a tuple.
+
+This works even when the parameters type is a readonly array.
+*/
 export type Parameters<T extends (...args: any) => any> = T extends (...args: infer P extends UnknownArray) => any ? P : never;
 
 // ========================================================================
