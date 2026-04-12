@@ -59,7 +59,7 @@ type Function3 = (foo: string, bar: number, baz?: boolean) => object;
 declare const twoOverloadsWithAssignableSignature: Overloads<Function1 & Function3>;
 expectType<[Function1, Function3]>(twoOverloadsWithAssignableSignature);
 
-// Three overloads — declaration order preserved
+// Three overloads - declaration order preserved
 declare const threeOverloads: Overloads<Function1 & Function2 & Function3>;
 expectType<[Function1, Function2, Function3]>(threeOverloads);
 
@@ -103,7 +103,7 @@ type Function10 = (event: 'event10', argument: number) => string;
 type Function11 = (event: 'event11', argument: boolean) => never;
 type Function12 = (event: 'event12', argument: bigint) => object;
 
-// Many overloads — order preserved
+// Many overloads - order preserved
 declare const manyOverloads: Overloads<
 	Function1
 	& Function2
@@ -161,7 +161,7 @@ type SameParametersDifferentReturn2 = (foo: string) => number;
 declare const sameParametersDifferentReturn: Overloads<SameParametersDifferentReturn1 & SameParametersDifferentReturn2>;
 expectType<[SameParametersDifferentReturn1, SameParametersDifferentReturn2]>(sameParametersDifferentReturn);
 
-// Generic overloads — generic parameters become `unknown`
+// Generic overloads - generic parameters become `unknown`
 declare function genericOverload<T>(input: T): T;
 declare function genericOverload(input: string): string;
 
@@ -194,7 +194,7 @@ declare const duplicateOverloads: Overloads<{
 }>;
 expectType<[Function1, () => string]>(duplicateOverloads);
 
-// Generic overload at intersection level stops iteration — only the last inferred overload
+// Generic overload at intersection level stops iteration - only the last inferred overload
 declare const genericIntersectionOverload: Overloads<((this: string) => string) & (<T>(this: T, argument: T) => T)>;
 expectType<[(this: unknown, argument: unknown) => unknown]>(genericIntersectionOverload);
 

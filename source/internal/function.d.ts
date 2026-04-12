@@ -20,7 +20,7 @@ Understanding how TypeScript enumerates overloads from an intersection type is e
 Given an intersection of function types (e.g. `F1 & F2 & F3`), TypeScript builds an overload list by scanning left to right and **deduplicating**:
 
 - Two overloads with the same (This, Parameters, Return) are considered duplicates. The first one wins; later ones are dropped.
-- HOWEVER, if one or both of the overloads has **implicit `this`** (i.e. no `this` annotation), the comparison ignores `This` and only checks (Parameters, Return). This means an implicit-`this` overload and an explicit-`this` overload with the same params/return are considered duplicates — whichever appears first wins.
+- HOWEVER, if one or both of the overloads has **implicit `this`** (i.e. no `this` annotation), the comparison ignores `This` and only checks (Parameters, Return). This means an implicit-`this` overload and an explicit-`this` overload with the same params/return are considered duplicates, and whichever appears first wins.
 
 Example (F1 = implicit this, F1wT<T> = explicit this: T, same params/return):
 
