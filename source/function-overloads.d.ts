@@ -12,7 +12,7 @@ Use-cases:
 - Extract event handler signatures from framework APIs
 
 Known limitations:
-- Generic type parameters are lost and inferred as `unknown`. Additionally, overloads preceding a generic overload are not extracted; the generic overload terminates the iteration.
+- Generic type parameters are lost -- they are replaced by their upper bound (e.g. `<T>` becomes `unknown`, `<T extends string>` becomes `string`). Functions with fewer than 4 generic overloads are fully extracted; when there are 4 or more generic overloads, extraction stops at the 4th-from-last generic overload and any overloads before it are omitted.
 - TypeScript deduplicates overloads that share the same parameters and return type. When one has implicit `this` (no annotation) and another has explicit `this`, they are treated as duplicates, and whichever appears first in the intersection suppresses the other. See `source/internal/function.d.ts` for details on TypeScript's overload enumeration behavior.
 
 @example

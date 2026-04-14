@@ -14,11 +14,9 @@ It accepts tuples of functions and compares them element-wise.
 */
 declare const isEqualStrictNothing: unique symbol;
 type IsEqualStrictNothing = typeof isEqualStrictNothing;
-type FuncToTuple<Function_ extends (...arguments_: never) => unknown> =
+type FuncToTuple<Function_ extends (...arguments_: any) => any> =
 	Function_ extends (...arguments_: infer Parameters_ extends UnknownArray) => infer Return
-		? ((this: IsEqualStrictNothing, ...arguments_: Parameters_) => Return) & Function_ extends (this: infer This, ...arguments_: never) => unknown
-			? [This, Parameters_, Return]
-			: never
+		? [ThisParameterType<((this: IsEqualStrictNothing, ...arguments_: Parameters_) => Return) & Function_>, Parameters_, Return]
 		: never;
 type IsEqualStrict<
 	FunctionTuple1 extends ReadonlyArray<(...arguments_: never) => unknown>,
@@ -194,9 +192,9 @@ declare const duplicateOverloads: Overloads<{
 }>;
 expectType<[Function1, () => string]>(duplicateOverloads);
 
-// Generic overload at intersection level stops iteration - only the last inferred overload
+// Generic overload at intersection level - overloads preceding the generic are now extracted via N-advancement
 declare const genericIntersectionOverload: Overloads<((this: string) => string) & (<T>(this: T, argument: T) => T)>;
-expectType<[(this: unknown, argument: unknown) => unknown]>(genericIntersectionOverload);
+expectType<[(this: string) => string, (this: unknown, argument: unknown) => unknown]>(genericIntersectionOverload);
 
 // Verify that explicit `this: unknown` is preserved while implicit `this` is omitted.
 // `IsEqualStrict` is needed here because neither `expectType` nor `IsEqual` can distinguish the two.
@@ -205,54 +203,74 @@ type Function1WithThis<This> = (this: This, foo: string, bar: number) => object;
 type Function2WithThis<This> = (this: This, foo: bigint, ...bar: any[]) => void;
 
 // Single overload with explicit `this: unknown`
-expectType<IsEqualStrict<
-	Overloads<Function1WithThis<unknown>>,
-	[Function1WithThis<unknown>]
->>(true);
+declare const singleOverloadWithExplicitThisUnknown: Overloads<Function1WithThis<unknown>>;
+expectType<IsEqualStrict<typeof singleOverloadWithExplicitThisUnknown, [Function1WithThis<unknown>]>>(true);
 
 // Single overload with implicit `this`
-expectType<IsEqualStrict<
-	Overloads<Function1>,
-	[Function1]
->>(true);
+expectType<IsEqualStrict<typeof normalFunction, [Function1]>>(true);
 
 // Mixed explicit `this: unknown` and implicit `this` overloads
-expectType<IsEqualStrict<
-	Overloads<Function1WithThis<unknown> & Function2>,
-	[Function1WithThis<unknown>, Function2]
->>(true);
+declare const mixedExplicitImplicitThis: Overloads<Function1WithThis<unknown> & Function2>;
+expectType<IsEqualStrict<typeof mixedExplicitImplicitThis, [Function1WithThis<unknown>, Function2]>>(true);
 
 // Multiple explicit and implicit `this` overloads
+declare const multipleExplicitImplicitThis: Overloads<{
+	(this: unknown, foo: string, bar: number): object;
+	(this: unknown, foo: bigint, ...bar: any[]): void;
+	(foo: string, bar: number, baz?: boolean): object;
+	(...foo: any[]): void;
+}>;
 expectType<IsEqualStrict<
-	Overloads<{
-		(this: unknown, foo: string, bar: number): object;
-		(this: unknown, foo: bigint, ...bar: any[]): void;
-		(foo: string, bar: number, baz?: boolean): object;
-		(...foo: any[]): void;
-	}>,
-	[
-		Function1WithThis<unknown>,
-		Function2WithThis<unknown>,
-		Function3,
-		Function4,
-	]
+	typeof multipleExplicitImplicitThis,
+	[Function1WithThis<unknown>, Function2WithThis<unknown>, Function3, Function4]
 >>(true);
 
+declare const aliasingGenericOverloads1: Overloads<{
+	(foo: string, bar: number): object;
+	(this: unknown, l: unknown, r: unknown): [unknown, unknown];
+	// <T, U>(l: T, r: U): [U, T];
+	<T, U>(l: T, r: U): [T, U];
+	<T>(l: T, r: T): [T, T];
+	(this: unknown, foo: bigint, ...bar: any[]): void;
+}>;
+expectType<IsEqualStrict<typeof aliasingGenericOverloads1, [
+	Function1,
+	(this: unknown, l: unknown, r: unknown) => [unknown, unknown],
+	(this: unknown, l: unknown, r: unknown) => [unknown, unknown],
+	(this: unknown, l: unknown, r: unknown) => [unknown, unknown],
+	Function2WithThis<unknown>,
+]>>(true);
+declare const aliasingGenericOverloads2: Overloads<{
+	(foo: string, bar: number): object;
+	<T, U>(l: T, r: U): [T, U];
+	<T>(l: T, r: T): [T, T];
+	(this: unknown, foo: bigint, ...bar: any[]): void;
+}>;
+expectType<IsEqualStrict<typeof aliasingGenericOverloads2, [
+	Function1,
+	(this: unknown, l: unknown, r: unknown) => [unknown, unknown],
+	(this: unknown, l: unknown, r: unknown) => [unknown, unknown],
+	Function2WithThis<unknown>,
+]>>(true);
+
 // When implicit `this` and explicit `this: unknown` overloads share same params/return, implicit may be lost
-expectType<IsEqualStrict<Overloads<Function1 & Function1WithThis<1>>, [Function1]>>(true);
+declare const implicitThenExplicitThis1: Overloads<Function1 & Function1WithThis<1>>;
+expectType<IsEqualStrict<typeof implicitThenExplicitThis1, [Function1]>>(true);
 // When the explicit `this` overload comes first, the implicit `this` overload may be absorbed
-expectType<IsEqualStrict<Overloads<Function1WithThis<1> & Function1>, [Function1WithThis<1>]>>(true);
-expectType<IsEqualStrict<Overloads<Function1WithThis<1> & Function1 & Function1WithThis<2>>, [Function1WithThis<1>, Function1WithThis<2>]>>(true);
+declare const explicitThenImplicitThis1: Overloads<Function1WithThis<1> & Function1>;
+expectType<IsEqualStrict<typeof explicitThenImplicitThis1, [Function1WithThis<1>]>>(true);
+declare const explicitImplicitExplicitThis: Overloads<Function1WithThis<1> & Function1 & Function1WithThis<2>>;
+expectType<IsEqualStrict<typeof explicitImplicitExplicitThis, [Function1WithThis<1>, Function1WithThis<2>]>>(true);
 // With `this: unknown` specifically, implicit `this` is always absorbed
-expectType<IsEqualStrict<Overloads<Function1 & Function1WithThis<unknown>>, [Function1]>>(true);
-expectType<IsEqualStrict<Overloads<Function1WithThis<unknown> & Function1>, [Function1WithThis<unknown>]>>(true);
+declare const implicitThenExplicitThisUnknown: Overloads<Function1 & Function1WithThis<unknown>>;
+expectType<IsEqualStrict<typeof implicitThenExplicitThisUnknown, [Function1]>>(true);
+declare const explicitThisUnknownThenImplicit: Overloads<Function1WithThis<unknown> & Function1>;
+expectType<IsEqualStrict<typeof explicitThisUnknownThenImplicit, [Function1WithThis<unknown>]>>(true);
 
 // === OverloadParameters / OverloadReturnType ===
 
 declare const overloadParameters: OverloadParameters<Function1 & Function2>;
 expectType<[foo: string, bar: number] | [foo: bigint, ...bar: any[]]>(overloadParameters);
 
-// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 declare const overloadReturnType: OverloadReturnType<Function1 & Function2>;
-// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 expectType<object | void>(overloadReturnType);

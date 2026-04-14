@@ -1,5 +1,7 @@
+import type {IntRange} from '../int-range.d.ts';
 import type {IsEqual} from '../is-equal.d.ts';
 import type {IsUnknown} from '../is-unknown.d.ts';
+import type {Sum} from '../sum.d.ts';
 import type {UnknownArray} from '../unknown-array.d.ts';
 
 /**
@@ -43,49 +45,77 @@ declare const unique: unique symbol;
 type Unique = typeof unique;
 
 /**
-Detect whether the last overload of a function type has an explicit `this` annotation.
+Detect whether an overload with the given (This, Parameters, Return) has an explicit `this` annotation in the original function type.
 
-Intersects `(this: Unique, ...)` from the right. Per TypeScript's deduplication rules (see "Overload enumeration" above), implicit `this` absorbs the sentinel (same (P,R) → duplicate, first-wins), so `ThisParameterType` stays `unknown`. Explicit `this: unknown` does not absorb it (both explicit, different `This` → not duplicate), so `ThisParameterType` returns `Unique`.
+Intersects `(this: Unique, ...args: Parameters) => Return` onto the function type from the right. Per TypeScript's deduplication rules (see "Overload enumeration" above), implicit `this` absorbs the sentinel (same (P,R), one implicit -- first-wins), so `ThisParameterType` stays `unknown`. Explicit `this: unknown` does not absorb it (both explicit, different `This` -- not duplicate), so the sentinel becomes the last overload and `ThisParameterType` returns `Unique`.
 */
-type HasExplicitThis<T extends (...args: any) => any> =
-	IsUnknown<ThisParameterType<T>> extends true
-		? IsEqual<ThisParameterType<T & ((this: Unique, ...args: Parameters<T>) => ReturnType<T>)>, Unique> extends true
-			? true
-			: false
-		: true;
+type HasExplicitThis<
+	FunctionType extends (...args: any) => any,
+	This, Parameters_ extends UnknownArray, Return,
+> = IsUnknown<This> extends true
+	? IsEqual<ThisParameterType<FunctionType & ((this: Unique, ...args: Parameters_) => Return)>, Unique>
+	: true;
 
+type MaxOverloadPatterns = 4;
+type OverloadIndex = IntRange<0, MaxOverloadPatterns>;
 /**
-Extract the last overload of a function type as a standalone function, correctly preserving implicit `this` (omitted) vs explicit `this` (kept).
+Extract the Nth-from-last (N < MaxOverloadPatterns) overload of a function type as a standalone function, correctly preserving implicit `this` (omitted) vs explicit `this` (kept).
+
+F can contain a `() => Unique` sentinel (prepended by `CollectOverloads`).
 */
-type LastOverload<T extends (...args: any) => any> =
-	HasExplicitThis<T> extends true
-		? (this: ThisParameterType<T>, ...args: Parameters<T>) => ReturnType<T>
-		: (...args: Parameters<T>) => ReturnType<T>;
+type NthLastOverload<F extends (...args: any) => any, N extends OverloadIndex> = F extends {
+	(this: infer T3, ...args: infer P3 extends UnknownArray): infer R3;
+	(this: infer T2, ...args: infer P2 extends UnknownArray): infer R2;
+	(this: infer T1, ...args: infer P1 extends UnknownArray): infer R1;
+	(this: infer T0, ...args: infer P0 extends UnknownArray): infer R0;
+}
+	? ({
+		3: [T3, P3, R3];
+		2: [T2, P2, R2];
+		1: [T1, P1, R1];
+		0: [T0, P0, R0];
+	}[N] extends [infer T, infer P extends UnknownArray, infer R]
+		? IsEqual<R, Unique> extends true
+			? undefined // No overload at this position
+			: HasExplicitThis<F, T, P, R> extends true
+				? (this: T, ...args: P) => R
+				: (...args: P) => R
+		: never)
+	: never;
 
 /**
 Extracts TypeScript's enumerated overload list into a tuple (see "Overload enumeration" above).
 
-Uses the intersection trick: intersecting `LastOverload<AllOverloads>` onto the left makes TypeScript's pattern matching skip it on the next iteration, effectively advancing through all overloads right to left. `LastOverload` preserves implicit-vs-explicit `this` via `HasExplicitThis`.
-
-The termination condition (`CheckedOverloads === PreviousCheckedOverloads`) lags by one iteration, so the last extracted overload is always a duplicate. We compensate by dropping the first element of the result tuple at termination.
+Prepends a `() => Unique` sentinel before the original overloads to mark the boundary, then delegates to `CollectOverloadsLoop`.
 
 @see https://github.com/microsoft/TypeScript/issues/32164#issuecomment-1146737709
 */
 export type CollectOverloads<
 	AllOverloads extends (...args: any) => any,
-	CheckedOverloads = unknown,
-	PreviousCheckedOverloads = never,
+> = CollectOverloadsLoop<(() => Unique) & AllOverloads>;
+
+/**
+Recursive core of `CollectOverloads`.
+
+Each iteration extracts `NthLastOverload<AllOverloads, N>` and then checks whether intersecting the extracted overload onto `AllOverloads` changes what position N sees:
+
+- **Effect observed** (the two differ): the intersection advanced the view. Output `ExtractedN`, intersect it onto `AllOverloads`, and continue with the same N.
+- **No effect** (they are equal): the intersection would not advance the view (e.g. aliasing generic overloads that infer to the same concrete signature). Output `ExtractedN` without intersecting, and advance N to the next position.
+- **Sentinel hit** (`NthLastOverload` returns `undefined`): no original overload at this depth. Return the accumulated result.
+
+The loop terminates when either N exceeds `OverloadIndex` or the sentinel is reached.
+*/
+type CollectOverloadsLoop<
+	AllOverloads extends (...args: any) => any,
+	N extends OverloadIndex = 0,
 	ResultOverloads extends Array<(...args: any) => any> = [],
 > =
-	IsEqual<CheckedOverloads, PreviousCheckedOverloads> extends true
-		? ResultOverloads extends [(...args: any) => any, ...infer Rest extends Array<(...args: any) => any>] ? Rest : []
-		: CollectOverloads<
-			// Intersecting one signature with the full type makes the compiler infer a different "last overload"
-			// each iteration, effectively iterating all overloads from bottom to top.
-			LastOverload<AllOverloads> & AllOverloads,
-			LastOverload<AllOverloads> & CheckedOverloads,
-			CheckedOverloads,
-			[LastOverload<AllOverloads>, ...ResultOverloads]
-		>;
+	NthLastOverload<AllOverloads, N> extends infer ExtractedN extends (...args: any) => any
+		? IsEqual<NthLastOverload<ExtractedN & AllOverloads, N>, ExtractedN> extends true
+			? Sum<N, 1> extends infer NextN extends OverloadIndex
+				? CollectOverloadsLoop<AllOverloads, NextN, [ExtractedN, ...ResultOverloads]>
+				: [ExtractedN, ...ResultOverloads]
+			: CollectOverloadsLoop<ExtractedN & AllOverloads, N, [ExtractedN, ...ResultOverloads]>
+		: ResultOverloads;
 
 export {};
