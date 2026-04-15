@@ -86,36 +86,27 @@ type NthLastOverload<F extends (...args: any) => any, N extends OverloadIndex> =
 /**
 Extracts TypeScript's enumerated overload list into a tuple (see "Overload enumeration" above).
 
-Prepends a `() => Unique` sentinel before the original overloads to mark the boundary, then delegates to `CollectOverloadsLoop`.
-
-@see https://github.com/microsoft/TypeScript/issues/32164#issuecomment-1146737709
-*/
-export type CollectOverloads<
-	AllOverloads extends (...args: any) => any,
-> = CollectOverloadsLoop<(() => Unique) & AllOverloads>;
-
-/**
-Recursive core of `CollectOverloads`.
-
-Each iteration extracts `NthLastOverload<AllOverloads, N>` and then checks whether intersecting the extracted overload onto `AllOverloads` changes what position N sees:
+`AllOverloads` defaults to `(() => Unique) & F`, prepending a `() => Unique` sentinel that marks the boundary of the original overloads. Each iteration extracts `NthLastOverload<AllOverloads, N>` and then checks whether intersecting the extracted overload onto `AllOverloads` changes what position N sees:
 
 - **Effect observed** (the two differ): the intersection advanced the view. Output `ExtractedN`, intersect it onto `AllOverloads`, and continue with the same N.
 - **No effect** (they are equal): the intersection would not advance the view (e.g. aliasing generic overloads that infer to the same concrete signature). Output `ExtractedN` without intersecting, and advance N to the next position.
 - **Sentinel hit** (`NthLastOverload` returns `undefined`): no original overload at this depth. Return the accumulated result.
 
 The loop terminates when either N exceeds `OverloadIndex` or the sentinel is reached.
+
+@see https://github.com/microsoft/TypeScript/issues/32164#issuecomment-1146737709
 */
-type CollectOverloadsLoop<
-	AllOverloads extends (...args: any) => any,
+export type CollectOverloads<
+	F extends (...args: any) => any,
+	AllOverloads extends (...args: any) => any = (() => Unique) & F,
 	N extends OverloadIndex = 0,
 	ResultOverloads extends Array<(...args: any) => any> = [],
-> =
-	NthLastOverload<AllOverloads, N> extends infer ExtractedN extends (...args: any) => any
-		? IsEqual<NthLastOverload<ExtractedN & AllOverloads, N>, ExtractedN> extends true
-			? Sum<N, 1> extends infer NextN extends OverloadIndex
-				? CollectOverloadsLoop<AllOverloads, NextN, [ExtractedN, ...ResultOverloads]>
-				: [ExtractedN, ...ResultOverloads]
-			: CollectOverloadsLoop<ExtractedN & AllOverloads, N, [ExtractedN, ...ResultOverloads]>
-		: ResultOverloads;
+> = NthLastOverload<AllOverloads, N> extends infer ExtractedN extends (...args: any) => any
+	? IsEqual<NthLastOverload<ExtractedN & AllOverloads, N>, ExtractedN> extends true
+		? Sum<N, 1> extends infer NextN extends OverloadIndex
+			? CollectOverloads<F, AllOverloads, NextN, [ExtractedN, ...ResultOverloads]>
+			: [ExtractedN, ...ResultOverloads]
+		: CollectOverloads<F, ExtractedN & AllOverloads, N, [ExtractedN, ...ResultOverloads]>
+	: ResultOverloads;
 
 export {};
